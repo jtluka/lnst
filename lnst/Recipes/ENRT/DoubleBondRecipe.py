@@ -34,8 +34,11 @@ class DoubleBondRecipe(CommonHWSubConfigMixin, OffloadSubConfigMixin,
         net_addr = "192.168.101"
         net_addr6 = "fc00:0:0:0"
         for i, host in enumerate([host1, host2]):
-            host.bond0 = BondDevice(mode=self.params.bonding_mode,
-                miimon=self.params.miimon_value)
+            host.bond0 = BondDevice(
+                mode=self.params.bonding_mode,
+                miimon=self.params.miimon_value,
+                fail_over_mac=1
+            )
             for dev in [host.eth0, host.eth1]:
                 dev.down()
                 host.bond0.slave_add(dev)

@@ -76,8 +76,11 @@ class BondRecipe(PerfReversibleFlowMixin, CommonHWSubConfigMixin, OffloadSubConf
         """
 
         host1, host2 = self.matched.host1, self.matched.host2
-        host1.bond0 = BondDevice(mode=self.params.bonding_mode,
-            miimon=self.params.miimon_value)
+        host1.bond0 = BondDevice(
+            mode=self.params.bonding_mode,
+            miimon=self.params.miimon_value,
+            fail_over_mac=1
+        )
         configuration = super().test_wide_configuration()
         configuration.test_wide_devices = []
 

@@ -37,8 +37,11 @@ class TeamVsBondRecipe(PerfReversibleFlowMixin, CommonHWSubConfigMixin,
 
         host1.team0 = TeamDevice(config={'runner': {'name': self.params.runner_name}})
 
-        host2.bond0 = BondDevice(mode=self.params.bonding_mode,
-            miimon=self.params.miimon_value)
+        host2.bond0 = BondDevice(
+            mode=self.params.bonding_mode,
+            miimon=self.params.miimon_value,
+            fail_over_mac=1
+        )
 
         configuration = super().test_wide_configuration()
         configuration.test_wide_devices = [host1.team0, host2.bond0]
