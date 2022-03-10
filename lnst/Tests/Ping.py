@@ -33,6 +33,7 @@ class Ping(BaseTestModule):
         return cmd
 
     def run(self):
+        self.ignore_interrupt()
         self._res_data = {}
         if not is_installed("ping"):
             self._res_data["msg"] = "Ping is not installed on this machine!"
@@ -47,11 +48,14 @@ class Ping(BaseTestModule):
                                         stderr=subprocess.PIPE, close_fds=True)
 
         try:
+            print("Ping - A")
             stdout, stderr = ping_process.communicate()
+            print("Ping - B")
             stdout = stdout.decode()
             stderr = stderr.decode()
         except KeyboardInterrupt:
-            pass
+            print("Ping - C")
+            #pass
 
         if ping_process.returncode > 1:
             self._res_data["msg"] = "returncode = {}".format(ping_process.returncode)
