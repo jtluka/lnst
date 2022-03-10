@@ -100,6 +100,9 @@ class BaseTestModule(object):
         finally:
             signal.signal(signal.SIGINT, old_handler)
 
+    def ignore_interrupt(self):
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+
     def _get_res_data(self):
         return self._res_data
 
