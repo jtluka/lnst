@@ -140,6 +140,9 @@ class Job(object):
                                                      type = "result")))
 
                 send_data(self._child_pipe, self.get_result())
+
+            self.join()
+
             return True
         except OSError as exc:
             logging.error(str(exc))
