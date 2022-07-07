@@ -1,6 +1,6 @@
 import re
 
-from lnst.Common.Parameters import ListParam
+from lnst.Common.Parameters import ListParam, StrParam
 from lnst.Controller.Recipe import RecipeError
 from lnst.Controller.RecipeResults import ResultLevel
 from lnst.Recipes.ENRT.ConfigMixins.BaseHWConfigMixin import BaseHWConfigMixin
@@ -20,6 +20,7 @@ class DevInterruptHWConfigMixin(BaseHWConfigMixin):
     """
 
     dev_intr_cpu = ListParam(mandatory=False)
+    dev_intr_cpu_policy = StrParam(mandatory=False, default='round_robin')
 
     @property
     def dev_interrupt_hw_config_dev_list(self):
@@ -88,7 +89,11 @@ class DevInterruptHWConfigMixin(BaseHWConfigMixin):
 
         for i, intr in enumerate(intrs):
             try:
-                cpu = cpus[i % len(cpus)]
+                if self.params.dev_intr_cpu_policy == 'round-robin':
+                    cpu = cpus[i % len(cpus)]
+                elif self.params.dev_intr_cpu_policy == 'all':
+                    cpu = ','.join([str(cpu) for cpu in cpus])
+
                 netns.run(
                     "echo -n {} > /proc/irq/{}/smp_affinity_list".format(
                         cpu, intr
