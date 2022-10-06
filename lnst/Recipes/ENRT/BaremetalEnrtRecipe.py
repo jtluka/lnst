@@ -51,4 +51,4 @@ class BaremetalEnrtRecipe(
 
     @property
     def linuxperf_cpus(self):
-        return [self.params.dev_intr_cpu, self.params.perf_tool_cpu]
+        return [list(set(self.params.dev_intr_cpu + self.params.perf_tool_cpu))]
