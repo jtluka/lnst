@@ -47,11 +47,9 @@ class BaselineEvaluator(BaseResultEvaluator):
         result_text = self.describe_group_results(recipe, recipe_conf, results)
 
         baselines = self.get_baselines(recipe, recipe_conf, results)
-        result_index = len(recipe.current_run.results)
-
-        for i, (result, baseline) in enumerate(zip(results, baselines)):
+        for result, baseline in zip(results, baselines):
             comparison, text = self.compare_result_with_baseline(
-                recipe, recipe_conf, result, baseline, result_index
+                recipe, recipe_conf, result, baseline
             )
             comparison_result = ResultType.max_severity(comparison_result, comparison)
             result_text.extend(text)
@@ -88,6 +86,5 @@ class BaselineEvaluator(BaseResultEvaluator):
         recipe_conf: PerfRecipeConf,
         result: PerfMeasurementResults,
         baseline: PerfMeasurementResults,
-        result_index: int = 0
     ) -> Tuple[ResultType, List[str]]:
         return ResultType.FAIL, ["Result to baseline comparison not implemented"]
