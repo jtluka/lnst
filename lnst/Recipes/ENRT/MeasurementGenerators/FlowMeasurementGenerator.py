@@ -86,8 +86,10 @@ class FlowMeasurementGenerator(BaseMeasurementGenerator):
 
     # common perf test params
     perf_tests = Param(default=("tcp_stream", "udp_stream", "sctp_stream"))
-    perf_tool_cpu = ListParam(mandatory=False)
-    perf_tool_cpu_policy = StrParam(mandatory=False)
+    perf_tool_generator_cpu = ListParam(mandatory=False)
+    perf_tool_receiver_cpu = ListParam(mandatory=False)
+    perf_tool_generator_cpu_policy = StrParam(mandatory=False)
+    perf_tool_receiver_cpu_policy = StrParam(mandatory=False)
     perf_duration = IntParam(default=60)
     perf_iterations = IntParam(default=5)
     perf_parallel_streams = IntParam(default=1)
@@ -169,6 +171,17 @@ class FlowMeasurementGenerator(BaseMeasurementGenerator):
         flows = []
         port_offset=12000
         for i in range(self.params.perf_parallel_processes):
+            gen_cpus = self._cpupin_based_on_policy(
+                    i,
+                    self.params.get('perf_tool_generator_cpu', None),
+                    self.params.get('perf_tool_generator_cpu_policy', None),
+            )
+            rcv_cpus = self._cpupin_based_on_policy(
+                    i,
+                    self.params.get('perf_tool_receiver_cpu', None),
+                    self.params.get('perf_tool_receiver_cpu_policy', None),
+                    )
+
             flows.append(
                 self._create_perf_flow(
                     perf_test,
@@ -178,32 +191,29 @@ class FlowMeasurementGenerator(BaseMeasurementGenerator):
                     server_bind,
                     port_offset + i,
                     msg_size,
-                    self._cpupin_based_on_policy(i),
+                    gen_cpus,
+                    rcv_cpus,
                 )
             )
 
         return flows
 
-    def _cpupin_based_on_policy(self, process_no=None):
+    def _cpupin_based_on_policy(self, process_no=None, cpus=None, cpu_policy=None):
         if process_no is None:
             return None
 
-        try:
-            cpus = self.params.perf_tool_cpu
-        except:
+        if not cpus:
             return None
 
-        try:
-            policy = self.params.perf_tool_cpu_policy
-        except:
+        if not cpu_policy:
             return cpus
 
-        if policy == 'round-robin':
+        if cpu_policy == 'round-robin':
             return [cpus[process_no % len(cpus)]]
-        elif policy == 'all':
+        elif cpu_policy == 'all':
             return cpus
         else:
-            raise Exception(f'Unknown perf_tool_cpu_policy {policy}')
+            raise Exception(f'Unknown cpu_policy {policy}')
 
     def _create_perf_flow(
         self,
@@ -214,7 +224,8 @@ class FlowMeasurementGenerator(BaseMeasurementGenerator):
         server_bind,
         server_port,
         msg_size,
-        cpupin,
+        generator_cpupin,
+        receiver_cpupin,
     ) -> PerfFlow:
         """
         Wrapper to create a PerfFlow. Mixins that want to change this behavior (for example, to reverse the direction)
@@ -233,5 +244,6 @@ class FlowMeasurementGenerator(BaseMeasurementGenerator):
             duration=self.params.perf_duration,
             warmup_duration=self.params.perf_warmup_duration,
             parallel_streams=self.params.perf_parallel_streams,
-            cpupin=cpupin,
+            generator_cpupin=generator_cpupin,
+            receiver_cpupin=receiver_cpupin,
         )
