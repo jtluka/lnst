@@ -66,8 +66,10 @@ class SimpleNetworkRecipe(
         ipv6_addr = interface_addresses(self.params.net_ipv6)
 
         for host in [host1, host2]:
-            host.eth0.ip_add(next(ipv4_addr))
-            host.eth0.ip_add(next(ipv6_addr))
+            for i in range(self.params.perf_parallel_processes):
+                host.eth0.ip_add(next(ipv4_addr))
+                host.eth0.ip_add(next(ipv6_addr))
+
             host.eth0.up()
             configuration.test_wide_devices.append(host.eth0)
 
