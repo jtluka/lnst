@@ -27,8 +27,8 @@ class DevInterruptHWConfigMixin(BaseHWConfigMixin):
         than the number of CPUs
     """
 
-    dev_intr_cpu_lists = ListParam(type=ListParam(), mandatory=False)
-    dev_intr_cpu_policies = ListParam(type=StrParam(), mandatory=False)
+    dev_intr_cpu_lists = ListParam(type=ListParam(), mandatory=False, default=[[]])
+    dev_intr_cpu_policies = ListParam(type=StrParam(), mandatory=False, default=[])
 
     @property
     def dev_interrupt_hw_config_dev_list(self):
