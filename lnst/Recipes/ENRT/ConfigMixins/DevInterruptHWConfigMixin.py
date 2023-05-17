@@ -15,12 +15,20 @@ class DevInterruptHWConfigMixin(BaseHWConfigMixin):
      .. note::
         Note that this Mixin also stops the irqbalance service.
 
-    :param dev_intr_cpu:
-        (optional test parameter) CPU ids to which the device IRQs should be pinned
+    :param dev_intr_cpu_lists:
+        (optional test parameter) each list specifies the CPU ids to which the
+        test device IRQs should be pinned, to skip the configuration for a device,
+        specify an empty list
+    :param dev_intr_cpu_policies:
+        (optional test parameter) for each test devices policy can be defined:
+        * all - pin each IRQ to all CPUs defined by the :attr:`dev_intr_cpu_lists`
+        * round-robin - use one CPU from the :attr:`dev_intr_cpu_lists` for each
+        test device IRQ, start from beginning if the number of IRQs is bigger
+        than the number of CPUs
     """
 
-    dev_intr_cpu = ListParam(mandatory=False)
-    dev_intr_cpu_policy = StrParam(mandatory=False, default='round_robin') # change to ChoiceParam
+    dev_intr_cpu_lists = ListParam(type=ListParam(), mandatory=False)
+    dev_intr_cpu_policies = ListParam(type=StrParam(), mandatory=False)
 
     @property
     def dev_interrupt_hw_config_dev_list(self):
@@ -35,23 +43,26 @@ class DevInterruptHWConfigMixin(BaseHWConfigMixin):
 
         hw_config = config.hw_config
 
-        if "dev_intr_cpu" in self.params:
+        if "dev_intr_cpu_lists" in self.params and any(self.params.dev_intr_cpu_lists):
             intr_cfg = hw_config["dev_intr_cpu_configuration"] = {}
             intr_cfg["irq_devs"] = {}
             intr_cfg["irqbalance_hosts"] = []
 
-            hosts = []
-            for dev in self.dev_interrupt_hw_config_dev_list:
-                if dev.host not in hosts:
-                    hosts.append(dev.host)
-            for host in hosts:
-                host.run("service irqbalance stop")
-                intr_cfg["irqbalance_hosts"].append(host)
+            for dev, cpus, policy in zip(
+                self.dev_interrupt_hw_config_dev_list,
+                self.params.dev_intr_cpu_lists,
+                self.params.dev_intr_cpu_policies,
+            ):
+                if not cpus:
+                    continue
 
-            for dev in self.dev_interrupt_hw_config_dev_list:
+                if dev.host not in intr_cfg["irqbalance_hosts"]:
+                    dev.host.run("service irqbalance stop")
+                    intr_cfg["irqbalance_hosts"].append(dev.host)
+
                 # TODO better service handling through HostAPI
-                self._pin_dev_interrupts(dev, self.params.dev_intr_cpu)
-                intr_cfg["irq_devs"][dev] = self.params.dev_intr_cpu
+                self._pin_dev_interrupts(dev, cpus, policy)
+                intr_cfg["irq_devs"][dev] = (cpus, policy)
 
     def hw_deconfig(self, config):
         intr_config = config.hw_config.get("dev_intr_cpu_configuration", {})
@@ -72,16 +83,16 @@ class DevInterruptHWConfigMixin(BaseHWConfigMixin):
                 for host in intr_cfg["irqbalance_hosts"]
             ]
             desc += [
-                "{}.{} irqs bound to cpu {}".format(
-                    dev.host.hostid, dev._id, cpu
+                "{}.{} irqs bound to cpu {} with policy:{}".format(
+                    dev.host.hostid, dev._id, cpu, policy
                 )
-                for dev, cpu in intr_cfg["irq_devs"].items()
+                for dev, (cpu, policy) in intr_cfg["irq_devs"].items()
             ]
         else:
             desc.append("Device irq configuration skipped.")
         return desc
 
-    def _pin_dev_interrupts(self, dev, cpus):
+    def _pin_dev_interrupts(self, dev, cpus, policy):
         netns = dev.netns
         self._check_cpu_validity(netns, cpus)
 
@@ -89,15 +100,13 @@ class DevInterruptHWConfigMixin(BaseHWConfigMixin):
 
         for i, intr in enumerate(intrs):
             try:
-                if self.params.dev_intr_cpu_policy == 'round_robin':
+                if policy in [ "round-robin", None ]:
                     cpu = cpus[i % len(cpus)]
-                elif self.params.dev_intr_cpu_policy == 'all':
-                    cpu = ','.join([str(cpu) for cpu in cpus])
+                elif policy == "all":
+                    cpu = ",".join([str(cpu) for cpu in cpus])
 
                 netns.run(
-                    "echo -n {} > /proc/irq/{}/smp_affinity_list".format(
-                        cpu, intr
-                    )
+                    "echo -n {} > /proc/irq/{}/smp_affinity_list".format(cpu, intr)
                 )
             except ValueError:
                 pass
@@ -141,7 +150,5 @@ class DevInterruptHWConfigMixin(BaseHWConfigMixin):
             dev.down()
 
         return [
-            int(intr.strip())
-            for intr in res.stdout.strip().split("\n")
-            if intr != ""
+            int(intr.strip()) for intr in res.stdout.strip().split("\n") if intr != ""
         ]
