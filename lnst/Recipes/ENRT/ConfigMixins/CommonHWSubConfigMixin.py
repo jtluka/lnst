@@ -11,9 +11,22 @@ from lnst.Recipes.ENRT.ConfigMixins.MTUHWConfigMixin import MTUHWConfigMixin
 from lnst.Recipes.ENRT.ConfigMixins.PauseFramesHWConfigMixin import (
     PauseFramesHWConfigMixin,
 )
+from lnst.Recipes.ENRT.ConfigMixins.DevQueuesConfigMixin import (
+    DevQueuesConfigMixin,
+)
+from lnst.Recipes.ENRT.ConfigMixins.DevNfcRxFlowHashConfigMixin import (
+    DevNfcRxFlowHashConfigMixin,
+)
+from lnst.Recipes.ENRT.ConfigMixins.DevRxHashFunctionConfigMixin import (
+    DevRxHashFunctionConfigMixin,
+)
+
 
 
 class CommonHWSubConfigMixin(
+    DevRxHashFunctionConfigMixin,
+    DevNfcRxFlowHashConfigMixin,
+    DevQueuesConfigMixin,
     PauseFramesHWConfigMixin,
     ParallelStreamQDiscHWConfigMixin,
     DevInterruptHWConfigMixin,
