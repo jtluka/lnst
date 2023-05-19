@@ -1,4 +1,4 @@
-from lnst.Common.Parameters import BoolParam
+from lnst.Common.Parameters import BoolParam, DictParam
 
 from lnst.Recipes.ENRT.ConfigMixins.BaseHWConfigMixin import BaseHWConfigMixin
 
@@ -19,6 +19,7 @@ class CoalescingHWConfigMixin(BaseHWConfigMixin):
 
     adaptive_rx_coalescing = BoolParam(mandatory=False)
     adaptive_tx_coalescing = BoolParam(mandatory=False)
+    coalescing_settings = DictParam(mandatory=False)
 
     @property
     def coalescing_hw_config_dev_list(self):
@@ -42,7 +43,22 @@ class CoalescingHWConfigMixin(BaseHWConfigMixin):
                     param_value
                 )
 
+        for param, param_value in self.params.get("coalescing_settings", {}).items():
+            self._configure_dev_attribute(
+                config,
+                self.coalescing_hw_config_dev_list,
+                coalescing_param_to_device_attribute(param),
+                param_value
+            )
+
     def hw_deconfig(self, config):
+        for param, _ in self.params.get("coalescing_settings", {}).items():
+            self._deconfigure_dev_attribute(
+                config,
+                self.coalescing_hw_config_dev_list,
+                coalescing_param_to_device_attribute(param),
+            )
+
         for feature in ['adaptive_rx_coalescing', 'adaptive_tx_coalescing']:
             self._deconfigure_dev_attribute(
                 config,
@@ -58,4 +74,16 @@ class CoalescingHWConfigMixin(BaseHWConfigMixin):
             desc.extend(
                 self._describe_dev_attribute(config, param)
             )
+
+        for param in self.params.get("coalescing_settings", {}).keys():
+            self._describe_dev_attribute(config, coalescing_param_to_device_attribute(param))
+
         return desc
+
+def coalescing_param_to_device_attribute(param):
+    """
+    This mixin accepts the coalesce_settings keys in 'ethtool -C' format
+    The Device class uses more descriptive property names along with
+    underscores, so we need to translate the keys to property names
+    """
+    return "coalescing_" + param.replace("-","_")
