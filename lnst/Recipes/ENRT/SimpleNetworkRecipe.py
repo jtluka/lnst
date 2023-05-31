@@ -11,28 +11,7 @@ from lnst.Recipes.ENRT.ConfigMixins.CommonHWSubConfigMixin import (
 )
 
 
-class SimpleNetworkRecipe(
-    CommonHWSubConfigMixin, OffloadSubConfigMixin, BaremetalEnrtRecipe
-):
-    """
-    This recipe implements Enrt testing for a simple network scenario that looks
-    as follows
-
-    .. code-block:: none
-
-                    +--------+
-             +------+ switch +-----+
-             |      +--------+     |
-          +--+-+                 +-+--+
-        +-|eth0|-+             +-|eth0|-+
-        | +----+ |             | +----+ |
-        | host1  |             | host2  |
-        +--------+             +--------+
-
-    All sub configurations are included via Mixin classes.
-
-    The actual test machinery is implemented in the :any:`BaseEnrtRecipe` class.
-    """
+class BaseSimpleNetworkRecipe(BaremetalEnrtRecipe):
     host1 = HostReq()
     host1.eth0 = DeviceReq(label="net1", driver=RecipeParam("driver"))
 
@@ -118,6 +97,29 @@ class SimpleNetworkRecipe(
         """
         return [(self.matched.host1.eth0, self.matched.host2.eth0)]
 
+
+class SimpleNetworkRecipe(
+    CommonHWSubConfigMixin, OffloadSubConfigMixin, BaseSimpleNetworkRecipe
+):
+    """
+    This recipe implements Enrt testing for a simple network scenario that looks
+    as follows
+
+    .. code-block:: none
+
+                    +--------+
+             +------+ switch +-----+
+             |      +--------+     |
+          +--+-+                 +-+--+
+        +-|eth0|-+             +-|eth0|-+
+        | +----+ |             | +----+ |
+        | host1  |             | host2  |
+        +--------+             +--------+
+
+    All sub configurations are included via Mixin classes.
+
+    The actual test machinery is implemented in the :any:`BaseEnrtRecipe` class.
+    """
     @property
     def pause_frames_dev_list(self):
         return [self.matched.host1.eth0, self.matched.host2.eth0]
