@@ -4,7 +4,7 @@ import os
 
 from lnst.Tests.BaseTestModule import BaseTestModule
 from lnst.Common.Parameters import StrParam, IntParam, ListParam
-from lnst.Common.Utils import is_installed
+from lnst.Common.Utils import is_installed, is_rpm_installed
 from lnst.Common.ExecCmd import log_output
 
 class LinuxPerf(BaseTestModule):
@@ -36,6 +36,23 @@ class LinuxPerf(BaseTestModule):
             log_output(logging.debug, "Stderr", stderr.decode())
 
         self._res_data["filename"] = os.path.abspath(self.params.output_file)
+
+        if is_rpm_installed("kernel-debuginfo"):
+            # run perf archive
+            archive_process = subprocess.Popen(
+                f"perf archive {self.params.output_file}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True
+            )
+            stdout, stderr = archive_process.communicate()
+            if stdout:
+                log_output(logging.debug, "Stdout (perf archive)", stdout.decode())
+            if stderr:
+                log_output(logging.debug, "Stderr (perf archive)", stderr.decode())
+
+            # add to _res_data
+            self._res_data["filename_archive"] = os.path.abspath(self.params.output_file + ".tar.bz2")
+        else:
+            logging.debug("kernel-debuginfo is not installed, will not save debug symbols")
+
         return process.returncode == -2
 
     def _compose_cmd(self) -> str:
