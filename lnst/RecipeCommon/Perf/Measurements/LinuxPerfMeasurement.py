@@ -18,7 +18,7 @@ from lnst.Controller.Job import Job
 from lnst.Controller.Host import Host
 from lnst.Controller.Recipe import BaseRecipe
 from lnst.Controller.RecipeResults import MeasurementResult, ResultLevel
-
+from lnst.Controller.Machine import MachineError
 
 def timestamp() -> str:
     return datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
@@ -120,12 +120,25 @@ class LinuxPerfMeasurement(BaseMeasurement):
                 continue
 
             # copy agent's perf.data file to a controller
+            timestamp_str = timestamp()
             src_filepath: str = job.result["filename"]
-            new_filename: str = f"{os.path.basename(src_filepath)}.{self._collection_index}.{timestamp()}"
+            new_filename: str = f"{os.path.basename(src_filepath)}.{self._collection_index}.{timestamp_str}"
             dst_filepath: str = os.path.join(self._data_folder, host.hostid, new_filename)
 
             host.copy_file_from_machine(src_filepath, dst_filepath)
             logging.debug(f"perf-record data copied from agent to {dst_filepath}")
+
+            # copy agent's perf.data symbols file to controller
+            src_filepath: str = job.result["filename"] + ".tar.bz"
+            new_filename: str = f"{os.path.basename(src_filepath)}.{self._collection_index}.{timestamp_str}"
+            dst_filepath: str = os.path.join(self._data_folder, host.hostid, new_filename)
+
+            try:
+                host.copy_file_from_machine(src_filepath, dst_filepath)
+                logging.debug(f"perf-archive data copied from agent to {dst_filepath}")
+            except MachineError:
+                logging.debug(f"perf-archive data not available, most likely you need to install kernel-debuginfo")
+
             results.append(
                 LinuxPerfMeasurementResults(
                     self,
@@ -136,6 +149,7 @@ class LinuxPerfMeasurement(BaseMeasurement):
                     self._end_timestamp,
                 )
             )
+
         return results
 
     @classmethod
