@@ -318,6 +318,18 @@ def is_installed(program):
     except subprocess.CalledProcessError:
         return False
 
+def is_rpm_installed(package_name):
+    """
+    Returns True if package with package_name is installed, False otherwise
+    """
+    cmd = f"rpm -q --quiet {package_name}"
+    try:
+        subprocess.check_call(cmd, shell=True, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE)
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
 def indent(string, spaces):
     ret_str = []
     for line in string.split('\n'):
