@@ -109,6 +109,8 @@ class BaseSRIOVNetnsTcRecipe(
         # create virtual functions
         for host in [host1, host2]:
             host.run(f"devlink dev eswitch set pci/{host.eth0.bus_info} mode switchdev")
+            # some devices need the link to be up before creating VFs
+            host.eth0.up()
             time.sleep(2)
             host.run(f"echo 1 > /sys/class/net/{host.eth0.name}/device/sriov_numvfs")
             time.sleep(3)
