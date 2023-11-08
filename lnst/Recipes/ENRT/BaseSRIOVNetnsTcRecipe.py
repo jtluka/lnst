@@ -1,5 +1,4 @@
 from collections.abc import Collection
-import time
 
 from lnst.Common.Parameters import (
     Param,
@@ -108,19 +107,15 @@ class BaseSRIOVNetnsTcRecipe(
 
         # create virtual functions
         for host in [host1, host2]:
-            host.run(f"devlink dev eswitch set pci/{host.eth0.bus_info} mode switchdev")
-            time.sleep(2)
-            host.run(f"echo 1 > /sys/class/net/{host.eth0.name}/device/sriov_numvfs")
-            time.sleep(3)
-
-            vf_ifname = dict(ifname=f"{host.eth0.name}{self.params.vf_suffix}")
-            host.map_device("vf_eth0", vf_ifname)
+            host.eth0.eswitch_mode = "switchdev"
+            host.eth0.create_vfs(1)
+            vf_device = host.eth0.vf_devices[0]
+            vf_rep_device = host.eth0.vf_rep_devices[0]
 
             host.newns = NetNamespace("lnst")
-            host.newns.vf_eth0 = host.vf_eth0
+            host.newns.vf_eth0 = vf_device
 
-            vf_representor_ifname = dict(ifname="eth0")
-            host.map_device("vf_representor_eth0", vf_representor_ifname)
+            host.map_device("vf_representor_eth0", {"ifname": vf_rep_device.name})
 
             host.run(f"ethtool -K {host.vf_representor_eth0.name} hw-tc-offload on")
             host.run(f"ethtool -K {host.eth0.name} hw-tc-offload on")
@@ -212,10 +207,8 @@ class BaseSRIOVNetnsTcRecipe(
         config.ingress_devices = []
 
         for host in [self.matched.host1, self.matched.host2]:
-            host.run(f"echo 0 > /sys/class/net/{host.eth0.name}/device/sriov_numvfs")
-            time.sleep(2)
-            host.run(f"devlink dev eswitch set pci/{host.eth0.bus_info} mode legacy")
-            time.sleep(3)
+            host.eth0.delete_vfs()
+            host.eth0.eswitch_mode = "legacy"
 
         super().test_wide_deconfiguration(config)
 
