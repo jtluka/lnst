@@ -2,7 +2,6 @@ from collections.abc import Collection
 
 from lnst.Common.Parameters import (
     Param,
-    StrParam,
     IPv4NetworkParam,
     IPv6NetworkParam,
 )
@@ -74,8 +73,6 @@ class BaseSRIOVNetnsTcRecipe(
     With specific kernel parameter `biosdevname=1` we can expect default suffix on
     VF to be created to be `_n`, where n is the index of VF created.
     """
-    vf_suffix = StrParam(default="_0")
-
     offload_combinations = Param(default=(
         dict(gro="on", gso="on", tso="on", tx="on", rx="on"),
         dict(gro="off", gso="on", tso="on", tx="on", rx="on"),
