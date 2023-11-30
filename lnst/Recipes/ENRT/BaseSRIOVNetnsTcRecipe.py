@@ -1,4 +1,7 @@
 from collections.abc import Collection
+from dataclasses import dataclass
+from itertools import zip_longest
+from typing import Optional
 
 from lnst.Common.Parameters import (
     Param,
@@ -8,6 +11,7 @@ from lnst.Common.Parameters import (
 from lnst.Common.IpAddress import interface_addresses
 from lnst.Controller import HostReq, DeviceReq, RecipeParam
 from lnst.Controller.NetNamespace import NetNamespace
+from lnst.Devices import RemoteDevice
 from lnst.RecipeCommon.endpoints import EndpointPair, IPEndpoint
 from lnst.RecipeCommon.Perf.Recipe import RecipeConf
 from lnst.Recipes.ENRT.helpers import ip_endpoint_pairs
@@ -20,6 +24,30 @@ from lnst.Recipes.ENRT.ConfigMixins.OffloadSubConfigMixin import (
 from lnst.Recipes.ENRT.ConfigMixins.CommonHWSubConfigMixin import (
     CommonHWSubConfigMixin,
 )
+
+
+@dataclass
+class SRIOVDevices():
+    phys_dev: RemoteDevice
+    vfs: list[RemoteDevice]
+    vf_reps: Optional[list[RemoteDevice]] = None
+
+    def __init__(self, phys_dev: RemoteDevice, number_of_vfs: int = 1):
+        self.phys_dev = phys_dev
+        self.vfs, self.vf_reps = phys_dev.create_vfs(number_of_vfs)
+
+    def __iter__(self):
+        if self.vf_reps:
+            return zip(self.vfs, self.vf_reps, strict=True)
+
+        return zip_longest(self.vfs, [None])
+
+    def __getitem__(self, key):
+        if self.vf_reps:
+            return self.vfs[key], self.vf_reps[key]
+
+        return self.vfs[key], None
+
 
 class BaseSRIOVNetnsTcRecipe(
     CommonHWSubConfigMixin, OffloadSubConfigMixin, BaremetalEnrtRecipe
@@ -102,32 +130,36 @@ class BaseSRIOVNetnsTcRecipe(
         host1, host2 = self.matched.host1, self.matched.host2
         config = super().test_wide_configuration()
 
+        # TODO: ideally we would store the sriov_devices in EnrtConfiguration
+        # instance, but the devices are used also in overriden perf_test()
+        # method that does not have reference to EnrtConfiguration.
+        # Instead we will store as class instance attribute
+        self.sriov_devices = {}
+
         # create virtual functions
         for host in [host1, host2]:
             host.eth0.eswitch_mode = "switchdev"
-            host.eth0.create_vfs(1)
-            vf_device = host.eth0.vf_devices[0]
-            vf_rep_device = host.eth0.vf_rep_devices[0]
+            self.sriov_devices[host] = SRIOVDevices(host.eth0, 1)
+            vf_dev, vf_rep_dev = self.sriov_devices[host][0]
 
             host.newns = NetNamespace("lnst")
-            host.newns.vf_eth0 = vf_device
+            host.newns.vf_eth0 = vf_dev
 
-            host.map_device("vf_representor_eth0", {"ifname": vf_rep_device.name})
-
-            host.run(f"ethtool -K {host.vf_representor_eth0.name} hw-tc-offload on")
+            host.run(f"ethtool -K {vf_rep_dev.name} hw-tc-offload on")
             host.run(f"ethtool -K {host.eth0.name} hw-tc-offload on")
 
         vf_ipv4_addr = interface_addresses(self.params.vf_net_ipv4)
         vf_ipv6_addr = interface_addresses(self.params.vf_net_ipv6)
 
         for host in [host1, host2]:
-            config.configure_and_track_ip(host.newns.vf_eth0, next(vf_ipv4_addr))
-            config.configure_and_track_ip(host.newns.vf_eth0, next(vf_ipv6_addr))
+            vf_dev, vf_rep_dev = self.sriov_devices[host][0]
+            config.configure_and_track_ip(vf_dev, next(vf_ipv4_addr))
+            config.configure_and_track_ip(vf_dev, next(vf_ipv6_addr))
 
             for dev in [
                 host.eth0,
-                host.newns.vf_eth0,
-                host.vf_representor_eth0,
+                vf_dev,
+                vf_rep_dev,
             ]:
                 dev.up()
 
@@ -171,16 +203,16 @@ class BaseSRIOVNetnsTcRecipe(
 
     @property
     def dump_tc_rules_devices(self):
-        return [dev for host in self.matched for dev in [host.eth0, host.vf_representor_eth0]]
+        return [dev for host in self.matched for dev in [host.eth0, self.sriov_devices[host].vf_reps[0]]]
 
     def generate_test_wide_description(self, config: EnrtConfiguration):
         desc = super().generate_test_wide_description(config)
         for host in [self.matched.host1, self.matched.host2]:
             desc += [
                 f"Configured {host.hostid}.{host.eth0.name}.driver = switchdev\n"
-                f"Created virtual function on {host.hostid}.{host.eth0.name} = {host.newns.vf_eth0.name}\n"
+                f"Created virtual function on {host.hostid}.{host.eth0.name} = {self.sriov_devices[host].vfs[0].name}\n"
                 f"Created network_namespace on {host.hostid} = {host.newns.name}\n"
-                f"Moved interface {host.newns.vf_eth0.name} from {host.hostid} root namespace to {host.hostid}.{host.newns.name} namespace\n"
+                f"Moved interface {self.sriov_devices[host].vfs[0].name} from {host.hostid} root namespace to {host.hostid}.{host.newns.name} namespace\n"
                 f"Created tc rules for the connectivity between virtual functions\n"
             ]
         desc += [
@@ -207,6 +239,8 @@ class BaseSRIOVNetnsTcRecipe(
             host.eth0.delete_vfs()
             host.eth0.eswitch_mode = "legacy"
 
+        del self.sriov_devices
+
         super().test_wide_deconfiguration(config)
 
     def generate_ping_endpoints(self, config):
@@ -215,7 +249,7 @@ class BaseSRIOVNetnsTcRecipe(
 
         host1.newns.vf_eth0 and host2.newns.vf_eth0
         """
-        return [PingEndpoints(self.matched.host1.newns.vf_eth0, self.matched.host2.newns.vf_eth0)]
+        return [PingEndpoints(self.sriov_devices[self.matched.host1].vfs[0], self.sriov_devices[self.matched.host2].vfs[0])]
 
     def generate_perf_endpoints(self, config: EnrtConfiguration) -> list[Collection[EndpointPair[IPEndpoint]]]:
         """
@@ -223,7 +257,7 @@ class BaseSRIOVNetnsTcRecipe(
 
         host1.newns.vf_eth0 and host2.newns.vf_eth0
         """
-        return [ip_endpoint_pairs(config, (self.matched.host1.newns.vf_eth0, self.matched.host2.newns.vf_eth0))]
+        return [ip_endpoint_pairs(config, (self.sriov_devices[self.matched.host1].vfs[0], self.sriov_devices[self.matched.host2].vfs[0]))]
 
     @property
     def pause_frames_dev_list(self):
