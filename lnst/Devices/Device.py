@@ -960,24 +960,29 @@ class Device(object, metaclass=DeviceMeta):
             )
 
         # wait for devices to appear on the netlink
-        if self._wait_for_vf_devices(number_of_vfs, 10):
-            for vf_dev in self.vf_devices:
-                vf_dev._enable()
-        else:
+        if not self._wait_for_vf_devices(number_of_vfs, 10):
             raise DeviceError(f"Error while waiting for vfs for {self.name}")
+
+        for vf_dev in (vf_devices := self._get_vf_devices()):
+            vf_dev._enable()
 
         try:
             eswitch_mode = self.eswitch_mode
         except DeviceFeatureNotSupported:
-            return
+            return vf_devices, None
 
         if eswitch_mode == "switchdev":
             # wait for representor devices to appear on the netlink
-            if self._wait_for_vf_rep_devices(number_of_vfs, 10):
-                for vf_rep_dev in self.vf_rep_devices:
-                    vf_rep_dev._enable()
-            else:
+            if not self._wait_for_vf_rep_devices(number_of_vfs, 10):
                 raise DeviceError(f"Error while waiting for vf_reps for {self.name}")
+
+            for vf_rep_dev in (vf_rep_devices := self._get_vf_rep_devices()):
+                vf_rep_dev._enable()
+
+            return vf_devices, vf_rep_devices
+
+        # for any other cases, just return vf devices
+        return vf_devices, None
 
     def _wait_for_vf_devices(self, vfs_count, timeout):
         if timeout > 0:
@@ -1064,22 +1069,14 @@ class Device(object, metaclass=DeviceMeta):
 
         return True
 
-    @property
     @sriov_capable
-    def vf_devices(self):
-        return self._get_vf_devices()
-
     def _get_vf_devices(self):
         return [
             self._get_vf(vf_index)
             for vf_index in range(self._get_vf_count())
         ]
 
-    @property
     @switchdev_capable
-    def vf_rep_devices(self):
-        return self._get_vf_rep_devices()
-
     def _get_vf_rep_devices(self):
         return [
             self._get_vf_representor(vf_index)
