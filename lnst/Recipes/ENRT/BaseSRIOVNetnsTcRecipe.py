@@ -34,6 +34,7 @@ class SRIOVDevices():
 
     def __init__(self, phys_dev: RemoteDevice, number_of_vfs: int = 1):
         self.phys_dev = phys_dev
+        phys_dev.up_and_wait()
         self.vfs, self.vf_reps = phys_dev.create_vfs(number_of_vfs)
 
     def __iter__(self):
