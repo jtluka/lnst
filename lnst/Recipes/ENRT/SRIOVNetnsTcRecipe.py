@@ -1,5 +1,45 @@
 from lnst.Recipes.ENRT.BaseSRIOVNetnsTcRecipe import BaseSRIOVNetnsTcRecipe
 
+from itertools import product
+
+def tc_flower_redirect_arp(
+    on_device,
+    src_device,
+    dst_device,
+    redirect_device,
+    skip_path,
+):
+    for dev, src_dev, dst_dev, redir_dev in [
+            (on_device, src_device, dst_device, redirect_device),
+            (redirect_device, dst_device, src_device, on_device),
+        ]:
+        for src_mac, dst_mac in product(
+                [src_dev.hwaddr],
+                [dst_dev.hwaddr, "FF:FF:FF:FF:FF:FF"],
+            ):
+            dev.netns.run(
+                f"tc filter add dev {dev.name} protocol arp ingress "
+                f"flower {skip_path} src_mac {src_mac} dst_mac {dst_mac} "
+                f"action mirred egress redirect dev {redir_dev.name}"
+            )
+
+def tc_flower_redirect_ip(
+    on_device,
+    src_device,
+    dst_device,
+    redirect_device,
+    skip_path,
+):
+    for dev, dev_name, src_mac, dst_mac, redir_dev_name in [
+            (on_device, on_device.name, src_device.hwaddr, dst_device.hwaddr, redirect_device.name),
+            (redirect_device, redirect_device.name, dst_device.hwaddr, src_device.hwaddr, on_device.name),
+        ]:
+        dev.netns.run(
+            f"tc filter add dev {dev_name} protocol ip ingress "
+            f"flower {skip_path} src_mac {src_mac} dst_mac {dst_mac} "
+            f"action mirred egress redirect dev {redir_dev_name}"
+        )
+
 
 class SRIOVNetnsTcRecipe(BaseSRIOVNetnsTcRecipe):
     """
@@ -45,77 +85,37 @@ class SRIOVNetnsTcRecipe(BaseSRIOVNetnsTcRecipe):
         host1_vf_dev, host1_vf_rep_dev = self.sriov_devices[host1][0]
         host2_vf_dev, host2_vf_rep_dev = self.sriov_devices[host2][0]
 
-        host1.run(f"tc filter add dev {host1.eth0.name} "
-                  f"protocol ip ingress flower skip_sw "
-                  f"src_mac {host2_vf_dev.hwaddr} "
-                  f"dst_mac {host1_vf_dev.hwaddr} "
-                  f"action mirred egress redirect dev {host1_vf_rep_dev.name}")
+        tc_flower_redirect_arp(
+            host1.eth0,
+            host2_vf_dev,
+            host1_vf_dev,
+            host1_vf_rep_dev,
+            "skip_sw"
+        )
 
-        host1.run(f"tc filter add dev {host1.eth0.name} "
-                  f"protocol arp ingress flower "
-                  f"src_mac {host2_vf_dev.hwaddr} "
-                  f"dst_mac {host1_vf_dev.hwaddr} "
-                  f"action mirred egress redirect dev {host1_vf_rep_dev.name}")
+        tc_flower_redirect_arp(
+            host2.eth0,
+            host1_vf_dev,
+            host2_vf_dev,
+            host2_vf_rep_dev,
+            "skip_sw"
+        )
 
-        host1.run(f"tc filter add dev {host1.eth0.name} "
-                  f"protocol arp ingress flower "
-                  f"src_mac {host2_vf_dev.hwaddr} "
-                  f"dst_mac FF:FF:FF:FF:FF:FF "
-                  f"action mirred egress redirect dev {host1_vf_rep_dev.name}")
+        tc_flower_redirect_ip(
+            host1.eth0,
+            host2_vf_dev,
+            host1_vf_dev,
+            host1_vf_rep_dev,
+            "skip_sw"
+        )
 
-        host1.run(f"tc filter add dev {host1_vf_rep_dev.name} "
-                  f"protocol ip ingress flower skip_sw "
-                  f"src_mac {host1_vf_dev.hwaddr} "
-                  f"dst_mac {host2_vf_dev.hwaddr} "
-                  f"action mirred egress redirect dev {host1.eth0.name}")
-
-        host1.run(f"tc filter add dev {host1_vf_rep_dev.name} "
-                  f"protocol arp ingress flower "
-                  f"src_mac {host1_vf_dev.hwaddr} "
-                  f"dst_mac {host2_vf_dev.hwaddr} "
-                  f"action mirred egress redirect dev {host1.eth0.name}")
-
-        host1.run(f"tc filter add dev {host1_vf_rep_dev.name} "
-                  f"protocol arp ingress flower "
-                  f"src_mac {host1_vf_dev.hwaddr} "
-                  f"dst_mac FF:FF:FF:FF:FF:FF "
-                  f"action mirred egress redirect dev {host1.eth0.name}")
-
-        host2.run(f"tc filter add dev {host2.eth0.name} "
-                  f"protocol ip ingress flower skip_sw "
-                  f"src_mac {host1_vf_dev.hwaddr} "
-                  f"dst_mac {host2_vf_dev.hwaddr} "
-                  f"action mirred egress redirect dev {host2_vf_rep_dev.name}")
-
-        host2.run(f"tc filter add dev {host2.eth0.name} "
-                  f"protocol arp ingress flower "
-                  f"src_mac {host1_vf_dev.hwaddr} "
-                  f"dst_mac {host2_vf_dev.hwaddr} "
-                  f"action mirred egress redirect dev {host2_vf_rep_dev.name}")
-
-        host2.run(f"tc filter add dev {host2.eth0.name} "
-                  f"protocol arp ingress flower "
-                  f"src_mac {host1_vf_dev.hwaddr} "
-                  f"dst_mac FF:FF:FF:FF:FF:FF "
-                  f"action mirred egress redirect dev {host2_vf_rep_dev.name}")
-
-        host2.run(f"tc filter add dev {host2_vf_rep_dev.name} "
-                  f"protocol ip ingress flower skip_sw "
-                  f"src_mac {host2_vf_dev.hwaddr} "
-                  f"dst_mac {host1_vf_dev.hwaddr} "
-                  f"action mirred egress redirect dev {host2.eth0.name}")
-
-        host2.run(f"tc filter add dev {host2_vf_rep_dev.name} "
-                  f"protocol arp ingress flower "
-                  f"src_mac {host2_vf_dev.hwaddr} "
-                  f"dst_mac {host1_vf_dev.hwaddr} "
-                  f"action mirred egress redirect dev {host2.eth0.name}")
-
-        host2.run(f"tc filter add dev {host2_vf_rep_dev.name} "
-                  f"protocol arp ingress flower "
-                  f"src_mac {host2_vf_dev.hwaddr} "
-                  f"dst_mac FF:FF:FF:FF:FF:FF "
-                  f"action mirred egress redirect dev {host2.eth0.name}")
+        tc_flower_redirect_ip(
+            host2.eth0,
+            host1_vf_dev,
+            host2_vf_dev,
+            host2_vf_rep_dev,
+            "skip_sw"
+        )
 
     @property
     def pause_frames_dev_list(self):
