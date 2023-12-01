@@ -411,16 +411,19 @@ class Device(object, metaclass=DeviceMeta):
         if self.master:
             self.master.cleanup()
             self.master = None
+
+        try:
+            if not self.state != "up":
+                self.up_and_wait()
+
+            self.delete_vfs()
+        except DeviceFeatureNotSupported:
+            pass
+
         self.down()
         self.ip_flush()
         self._clear_tc_qdisc()
         self._clear_tc_filters()
-
-        try:
-            self.delete_vfs()
-            self.down()
-        except DeviceFeatureNotSupported:
-            pass
 
         self.restore_original_data()
 
@@ -949,9 +952,6 @@ class Device(object, metaclass=DeviceMeta):
 
     @sriov_capable
     def create_vfs(self, number_of_vfs=1):
-        if not self.state != "up":
-            self.up_and_wait()
-
         try:
             exec_cmd(f"echo {number_of_vfs} > /sys/class/net/{self.name}/device/sriov_numvfs")
         except ExecCmdFail as e:
@@ -1032,9 +1032,6 @@ class Device(object, metaclass=DeviceMeta):
 
     @sriov_capable
     def delete_vfs(self):
-        if not self.state != "up":
-            self.up_and_wait()
-
         try:
             exec_cmd(f"echo 0 > /sys/class/net/{self.name}/device/sriov_numvfs")
         except ExecCmdFail as e:
