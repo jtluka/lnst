@@ -168,6 +168,18 @@ class BaseRecipe(object):
         state['_ctl'] = None
         return state
 
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        obj = cls.__new__(cls)
+        memo[id(self)] = obj
+        for k, v in self.__dict__.items():
+            if k == 'runs':
+                v = []
+            if k == '_ctl':
+                v = None
+            setattr(obj, k, copy.deepcopy(v, memo))
+
+        return obj
 
 class RecipeRun(object):
     def __init__(self, recipe: BaseRecipe, match, desc=None, log_dir=None, log_list=None):
