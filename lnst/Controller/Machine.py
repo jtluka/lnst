@@ -14,6 +14,7 @@ rpazdera@redhat.com (Radek Pazdera)
 import logging
 import socket
 import sys
+from copy import deepcopy
 from lnst.Common.Utils import sha256sum
 from lnst.Common.Utils import check_process_running
 from lnst.Common.Version import lnst_version
@@ -693,6 +694,19 @@ class Machine(object):
         if self.get_libvirt_domain():
             state['_domain_ctl'] = None
         return state
+
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        obj = cls.__new__(cls)
+        memo[id(self)] = obj
+        for k, v in self.__dict__.items():
+            if k == '_jobs':
+                v = {}
+            if k == '_msg_dispatcher':
+                v = None
+            setattr(obj, k, deepcopy(v, memo))
+
+        return obj
 
     def _get_netns_by_name(self, netns):
         if netns is None:
