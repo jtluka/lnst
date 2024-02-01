@@ -160,6 +160,11 @@ class SRIOVNetnsOvSRecipe(
         Finally virtual function is deleted.
         """
         host1, host2 = self.matched.host1, self.matched.host2
+
+        for host in [host1, host2]:
+            for dev in [host.eth0, host.vf_representor_eth0, host.br0]:
+                dev.down()
+
         for i, host in enumerate([host1, host2]):
             host.run(f"echo 0 > /sys/class/net/{host.eth0.name}/device/sriov_numvfs")
             time.sleep(2)
