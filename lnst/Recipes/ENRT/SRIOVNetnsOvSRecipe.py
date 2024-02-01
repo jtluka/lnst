@@ -107,6 +107,7 @@ class SRIOVNetnsOvSRecipe(
             host.run("systemctl enable openvswitch")
             host.run("systemctl start openvswitch")
             host.run("ovs-vsctl set Open_vSwitch . other_config:hw-offload=true")
+            host.run("ovs-vsctl set Open_vSwitch . other_config:max-idle=1")
 
             host.run(f"devlink dev eswitch set pci/{host.eth0.bus_info} mode switchdev")
             time.sleep(2)
