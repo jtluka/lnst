@@ -95,6 +95,10 @@ class IperfFlowMeasurement(BaseFlowMeasurement):
                 flow.server_job.wait(timeout=5)
         finally:
             for flow in test_flows:
+                for i in range(0,30):
+                    logging.info(f"checking finished status of the server/client {i} seconds: {flow.server_job.finished}/{flow.client_job.finished}")
+                    time.sleep(1)
+
                 flow.server_job.kill()
                 flow.client_job.kill()
 
