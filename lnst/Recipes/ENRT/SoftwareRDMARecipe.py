@@ -2,7 +2,11 @@ from lnst.Common.Parameters import ChoiceParam, ConstParam, StrParam
 from lnst.RecipeCommon.Perf.Measurements import RDMABandwidthMeasurement
 from lnst.Recipes.ENRT.SimpleNetworkRecipe import SimpleNetworkRecipe
 from lnst.RecipeCommon.Perf.Recipe import RecipeConf
+from lnst.Controller.Recipe import RecipeError
 
+def assert_success(job: Job, exception_message: str = "job success assertion failed") -> None:
+    if not job.passed:
+        raise RecipeError(exception_message)
 
 class SoftwareRDMARecipe(SimpleNetworkRecipe):
     """
@@ -31,8 +35,10 @@ class SoftwareRDMARecipe(SimpleNetworkRecipe):
 
         # setup RDMA link, emulating InfiniBand on Ethernet
         for host in [host1, host2]:
-            host.run(
-                f"rdma link add {self.device_name} type {self.params.software_rdma_type} netdev {host.eth0.name}"
+            assert_success(
+                host.run(
+                    f"rdma link add {self.device_name} type {self.params.software_rdma_type} netdev {host.eth0.name}"
+                ),
             )
 
         config.rdma_device_name = self.device_name
