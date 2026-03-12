@@ -15,6 +15,7 @@ olichtne@redhat.com (Ondrej Lichtner)
 import re
 import select
 import socket
+import logging
 from collections import deque
 from lnst.Common.ExecCmd import exec_cmd
 from lnst.Common.DeviceError import (DeviceNotFound, DeviceConfigError,
@@ -117,11 +118,17 @@ class InterfaceManager(object):
                     dev = self._device_classes["LoopbackDevice"](self)
                 else:
                     dev = self._device_classes["Device"](self)
+
+                logging.debug(
+                    f"InterfaceManager.py: RTM_NEWLINK ifi_index={msg['index']} name={msg.get_attr('IFLA_IFNAME')}\n{msg}"
+                )
+
                 dev._init_netlink(msg)
                 self._devices[msg['index']] = dev
 
                 update_msg = {"type": "dev_created",
                               "dev_data": dev._get_if_data()}
+
                 self._server_handler.send_data_to_ctl(update_msg)
 
                 if msg['ifi_type'] != 772:

@@ -237,7 +237,17 @@ class Device(object, metaclass=DeviceMeta):
             raise DeviceError(msg)
 
         if nl_msg['header']['type'] == RTM_NEWLINK:
+            if self._nl_msg:
+                logging.debug(
+                    f"Device.py: RTM_NEWLINK update of ifi_index={self.ifindex} name={self.name}"
+                )
+            else:
+                logging.debug(f"Device.py: no previous nl_msg")
+
             self._nl_msg = nl_msg
+            logging.debug(
+                f"Device.py: RTM_NEWLINK update of ifi_index={self.ifindex} name={self.name}\n{nl_msg}"
+            )
         elif nl_msg['header']['type'] == RTM_NEWADDR:
             if nl_msg['family'] == AF_INET:
                 """

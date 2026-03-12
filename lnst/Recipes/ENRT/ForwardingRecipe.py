@@ -11,6 +11,8 @@ __author__ = """
 sdobron@redhat.com (Samuel Dobron)
 """
 
+import logging
+
 from lnst.Common.Parameters import (
     IntParam,
 )
@@ -93,6 +95,7 @@ class ForwardingRecipe(
         # neighbors needs to be static as receiver is running XDP drop
         # which drops ARP/NDP packets as well
         forwarder = self.matched.host2
+        logging.debug(f"self.receiver_nic.name == {self.receiver_nic}")
         forwarder.run(
             f"ip neigh add {self.params.netns_ipv4[2]} lladdr {self.receiver_nic.hwaddr} dev {self.forwarder_egress_nic.name}"
         )
@@ -113,6 +116,12 @@ class ForwardingRecipe(
         host1.ns = NetNamespace("lnst-receiver_ns")
         host1.ns.eth1 = host1.eth1
         host1.ns.run("ip link set dev lo up")
+        root_job = host1.run("ip link")
+        logging.info(root_job.stdout)
+        logging.info(host1.devices)
+        ns_job = host1.ns.run("ip link")
+        logging.info(ns_job.stdout)
+        logging.info(host1.ns.devices)
 
     def test_wide_deconfiguration(self, config):
         super().test_wide_deconfiguration(config)
