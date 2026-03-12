@@ -215,6 +215,7 @@ class Machine(object):
     def device_created(self, dev_data, netns=None):
         ns_instance = self._get_netns_by_name(netns)
         ifindex = dev_data["ifindex"]
+        logging.info(f"Device was created in {netns if netns else 'none'} ifindex: {ifindex}\n{dev_data}")
         if ifindex not in [idx for idx in self._device_database[ns_instance].keys()]:
             new_dev = None
             if len(self._tmp_device_database) > 0:
@@ -728,7 +729,7 @@ class Machine(object):
     def _add_device_to_database(self, ifindex, dev, netns=None):
         if not netns in self._device_database:
             self._device_database[netns] = {}
-
+        logging.info(f"Adding device to database netns:{netns.name if netns else 'none'}: {ifindex}")
         self._device_database[netns][ifindex] = dev
 
     def _get_device_from_database(self, ifindex, netns=None):
