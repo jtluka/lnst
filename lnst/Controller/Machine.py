@@ -86,6 +86,7 @@ class Machine(object):
         self._device_database = {}
         self._tmp_device_database = []
         self._netns_moved_devices = {}
+        self._completed_netns_moves = []
 
         self._initns = None
 
@@ -141,12 +142,34 @@ class Machine(object):
         except AttributeError:
             pass
 
+        self.wait_for_device_netns_move_completion(dev.ifindex, src)
+
+        netns_move = self._pop_completed_netns_move(dev.ifindex, src, dst)
+        new_ifindex = netns_move["new_ifindex"]
+
+        dev.ifindex = new_ifindex
+        dev.netns = dst
+
         self.rpc_call("remap_device",
-                dev.ifindex,
+                new_ifindex,
                 clsname=dev_clsname,
                 args=dev_args,
                 kwargs=dev_kwargs,
                 netns=dst)
+
+    def wait_for_device_netns_move_completion(self, old_ifindex, src, timeout=10):
+        def condition():
+            return [
+                netns_move
+                for netns_move in self._completed_netns_moves
+                if (
+                    netns_move["old_ifindex"] == old_ifindex and
+                    netns_move["src"] == src and
+                    netns_move["new_ifindex"] is not None
+                )
+            ]
+
+        self._msg_dispatcher.wait_for_condition(condition, timeout)
 
     def _add_device_to_netns_moved_devices(self, dev, dst, src):
         del self._device_database[src][dev.ifindex]
@@ -231,6 +254,11 @@ class Machine(object):
                 new_dev.netns = ns_instance
             else:
                 if netns_moved:
+                    # push an entry to be able to get a new index of the device
+                    self._push_completed_netns_move(
+                        self._netns_moved_devices[new_dev]
+                    )
+
                     del self._netns_moved_devices[new_dev]
                     new_dev.disable_readonly_cache()
                 else:
@@ -238,6 +266,28 @@ class Machine(object):
                     new_dev.ifindex = dev_data["ifindex"]
 
             self._add_device_to_database(ifindex, new_dev, ns_instance)
+
+    def _push_completed_netns_move(self, data):
+        self._completed_netns_moves.append(data)
+
+    def _pop_completed_netns_move(self, old_ifindex, src, dst):
+        matched_move = None
+
+        match = [
+                netns_move
+                for netns_move in self._completed_netns_moves
+                if (
+                    netns_move["old_ifindex"] == old_ifindex and
+                    netns_move["src"] == src and
+                    netns_move["dst"] == dst
+                )
+            ]
+
+        if match:
+            matched_move = match[0]
+            self._completed_netns_moves.remove(matched_move)
+
+        return matched_move
 
     def device_delete(self, dev_data, netns=None):
         ns_instance = self._get_netns_by_name(netns)
