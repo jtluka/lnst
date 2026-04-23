@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-LNST_SRC="${1:-git+https://github.com/LNST-project/lnst.git}"
+LNST_SRC="${1:-git+https://github.com/LNST-project/lnst.git@68a16d45fd5367eeef2ffeed9dfa09b4fd057790}"
 
 UV_VERSION="${UV_VERSION:-0.11.6}"
 export UV_PROJECT_ENVIRONMENT="/opt/lnst"
