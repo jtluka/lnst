@@ -132,7 +132,7 @@ class LoggingCtl:
 
         # the export_handler will add log messages to lists, so it could be exported to .lrc file
         self.log_list["controller"] = []
-        self.export_handler = self._create_export_handler(self.log_list["controller"], colours)
+        self.export_handler = self._create_export_handler(self.log_list["controller"])
         self.export_handler.setLevel(logging.DEBUG)
 
         if not debug:
@@ -182,11 +182,21 @@ class LoggingCtl:
         logger.addHandler(recipe_info)
         logger.addHandler(recipe_debug)
 
+        # reset the export_handler
+        logger.removeHandler(self.export_handler)
+
+        self.log_list["controller"] = []
+        self.export_handler = self._create_export_handler(self.log_list["controller"])
+        self.export_handler.setLevel(logging.DEBUG)
+        logger.addHandler(self.export_handler)
+
     def unset_recipe(self):
         logger = logging.getLogger()
         logger.removeHandler(self.recipe_handlers[0])
         logger.removeHandler(self.recipe_handlers[1])
         self.recipe_handlers = (None, None)
+        logger.removeHandler(self.export_handler)
+        self.export_handler = None
 
     def add_agent(self, agent_id):
         agent_log_path = os.path.join(self.recipe_log_path, agent_id)
