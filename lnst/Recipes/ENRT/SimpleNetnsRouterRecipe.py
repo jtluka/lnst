@@ -72,6 +72,9 @@ class SimpleNetnsRouterRecipe(SimpleNetworkRecipe):
                         (self.params.netns_ipv6[2], self.params.net_ipv6[2])]:
             host1.run(f"ip route add {dst} via {gw}")
 
+        # pin veth rx to CPU#8
+        self.receiver_nic.netns.run(f"echo 128 > /sys/class/net/{self.receiver_nic.name}/queues/rx-0/rps_cpus")
+
         return config
 
     def setup_namespaces(self):
