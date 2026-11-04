@@ -1,5 +1,5 @@
 from lnst.Controller.Recipe import BaseRecipe, RecipeError
-from lnst.Controller.RecipeResults import MeasurementResult
+from lnst.Controller.RecipeResults import MeasurementResult, ResultType
 from lnst.Tests import Ping
 
 class PingConf(object):
@@ -122,6 +122,11 @@ class PingTestAndEvaluate(BaseRecipe):
     def single_ping_evaluate(self, ping_config, result):
         for evaluator in ping_config.evaluators:
             evaluator.evaluate_results(self, result[1])
+            if self.current_run.results[-1].result != ResultType.PASS:
+                for m in [ping_config.client, ping_config.destination]:
+                    m.run("ip -d a")
+                    for dev in m.devices:
+                        m.run(f"ip -6 neigh show dev {dev.name}")
 
     def _generate_ping_kwargs(self, ping_config):
         kwargs = dict(dst=ping_config.destination_address,
