@@ -59,6 +59,11 @@ class UseVfsMixin:
 
                 vf_phys_dev.vf_trust = {0: self.params.vf_trust}
 
+                if self.params.vf_trust:
+                    vf_dev.netns.run(f"ip -d link show {vf_dev.name}")
+                    vf_dev.netns.run(f"ip link set {vf_dev.name} allmulticast on")
+                    vf_dev.netns.run(f"ip -d link show {vf_dev.name}")
+
         return config
 
     def test_wide_deconfiguration(self, config):
