@@ -66,8 +66,28 @@ class PingTestAndEvaluate(BaseRecipe):
         results = {}
 
         ping_array = []
+        dumps = {}
         for pingconf in ping_configs:
             ping = self.ping_init(pingconf)
+
+            dump1 = pingconf.client.run(f"rm -f /tmp/capture; tcpdump -U -w /tmp/capture -eni any 'icmp6'", bg=True)
+            dump2 = pingconf.destination.run(f"rm -f /tmp/capture; tcpdump -U -w /tmp/capture -eni any 'icmp6'", bg=True)
+            dumps[pingconf] = [dump1, dump2]
+
+            for dev in pingconf.client.devices:
+                pingconf.client.run(f"ethtool -S {dev.name} | grep -iE 'tx_multicast|tx_.*drop|tx_.*spoof'")
+
+                if self.params.use_vfs:
+                    pingconf.client.run(f"ethtool -S `ls /sys/class/net/{dev.name}/device/physfn/net/` | grep -iE 'tx_multicast|tx_.*drop|tx_.*spoof'")
+
+            for dev in pingconf.destination.devices:
+                pingconf.destination.run(f"ethtool -S {dev.name} | grep -iE 'rx_multicast|rx_.*drop'")
+
+                if self.params.use_vfs:
+                    pingconf.destination.run(f"ethtool -S `ls /sys/class/net/{dev.name}/device/physfn/net/` | grep -iE 'rx_multicast|rx_.*drop'")
+
+            self.ctl.wait(3)
+
             ping.start(bg = True)
             ping_array.append((pingconf, ping))
 
@@ -78,6 +98,26 @@ class PingTestAndEvaluate(BaseRecipe):
                 )
             finally:
                 pingjob.stop()
+
+            for dump in dumps[pingconf]:
+                dump.stop()
+
+            self.ctl.wait(3)
+
+            pingconf.client.run(f"tcpdump -r /tmp/capture; rm -f /tmp/capture")
+            pingconf.destination.run(f"tcpdump -r /tmp/capture; rm -f /tmp/capture")
+
+            for dev in pingconf.client.devices:
+                pingconf.client.run(f"ethtool -S {dev.name} | grep -iE 'tx_multicast|tx_.*drop|tx_.*spoof'")
+
+                if self.params.use_vfs:
+                    pingconf.client.run(f"ethtool -S `ls /sys/class/net/{dev.name}/device/physfn/net/` | grep -iE 'tx_multicast|tx_.*drop|tx_.*spoof'")
+
+            for dev in pingconf.destination.devices:
+                pingconf.destination.run(f"ethtool -S {dev.name} | grep -iE 'rx_multicast|rx_.*drop'")
+
+                if self.params.use_vfs:
+                    pingconf.destination.run(f"ethtool -S `ls /sys/class/net/{dev.name}/device/physfn/net/` | grep -iE 'rx_multicast|rx_.*drop'")
 
         for pingconf, pingjob in ping_array:
             result = (pingjob.passed, pingjob.result)
